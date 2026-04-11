@@ -1,0 +1,17 @@
+openai:
+  api_key: "sk-**your key**"              # 或通过环境变量 OPENAI_API_KEY
+  model: "qwen3.5-flash"
+  base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"  # 阿里百炼，可替换为代理地址
+
+nano_banana:
+  api_key: "sk-**your key**"              # 或通过环境变量 GRSAI_API_KEY
+  base_url: "https://grsai.dakka.com.cn"  # 国内nano banana pro中转站：https://grsai.ai/zh
+  model: "nano-banana-pro"  # 可选: nano-banana-pro / nano-banana-2 / nano-banana
+  image_size: "2K"          # 可选: 1K / 2K / 4K
+  aspect_ratio: "16:9"       # 可选: 1:1 / 16:9 / 9:16 / 4:3 / 3:4
+  poll_interval: 3          # 轮询间隔(秒)
+  max_poll_time: 300        # 最大等待时间(秒)
+
+output:
+  dir: "./output"
+  save_prompts: true        # 是否保存提示词JSON
