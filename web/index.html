@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plot Agent - AIGC 面试宝典自动配图</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+  .spinner { border: 3px solid #e5e7eb; border-top-color: #3b82f6; border-radius: 50%; width: 24px; height: 24px; animation: spin 0.7s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  textarea { resize: vertical; }
+  .fade-in { animation: fadeIn 0.3s ease-in; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  #settingsModal { transition: opacity 0.2s; }
+  .thumb-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+  .thumb-card { transition: transform 0.15s, box-shadow 0.15s; }
+</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<!-- Header -->
+<header class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between sticky top-0 z-30">
+  <div class="flex items-center gap-3">
+    <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+      <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+    </div>
+    <h1 class="text-lg font-semibold text-gray-800">Plot Agent</h1>
+    <span class="text-sm text-gray-400">AIGC 面试宝典自动配图</span>
+  </div>
+  <button onclick="openSettings()" class="p-2 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-gray-700" title="设置">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+  </button>
+</header>
+
+<!-- Main 3-column layout -->
+<main class="flex h-[calc(100vh-57px)]">
+
+  <!-- Left: Input -->
+  <section class="w-[380px] min-w-[320px] border-r border-gray-200 bg-white flex flex-col">
+    <div class="p-4 border-b border-gray-100">
+      <h2 class="font-semibold text-gray-700 text-sm mb-3">问答内容输入</h2>
+      <div class="flex gap-2 mb-3">
+        <button id="btnSingle" onclick="setMode('single')" class="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-50 text-blue-700 border border-blue-200">单条输入</button>
+        <button id="btnBatch" onclick="setMode('batch')" class="px-3 py-1.5 text-xs font-medium rounded-md bg-gray-50 text-gray-500 border border-gray-200">上传文件</button>
+      </div>
+    </div>
+
+    <!-- Single mode -->
+    <div id="singleMode" class="flex-1 flex flex-col p-4 gap-3 overflow-auto">
+      <textarea id="qaInput" rows="16" class="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none flex-1" placeholder="粘贴问答内容（支持 Markdown 和 HTML 格式）...&#10;&#10;示例：&#10;## 1.介绍一下多模态与语言大模型的区别&#10;&#10;### 问题解答&#10;二者并非完全独立的技术体系..."></textarea>
+      <button onclick="doAnalyze()" id="btnAnalyze" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg text-sm transition flex items-center justify-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+        分析并生成提示词
+      </button>
+    </div>
+
+    <!-- Batch mode -->
+    <div id="batchMode" class="flex-1 flex flex-col p-4 gap-3 overflow-auto hidden">
+      <div id="dropZone" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition cursor-pointer" onclick="document.getElementById('fileInput').click()">
+        <svg class="w-10 h-10 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+        <p class="text-sm text-gray-500">点击或拖拽上传 Markdown 文件</p>
+        <p class="text-xs text-gray-400 mt-1">支持 .md 文件</p>
+      </div>
+      <input type="file" id="fileInput" accept=".md" class="hidden" onchange="handleFile(event)">
+      <div id="fileName" class="text-sm text-gray-600 hidden"></div>
+      <div id="batchList" class="flex-1 overflow-auto"></div>
+    </div>
+  </section>
+
+  <!-- Center: Prompt Editor -->
+  <section class="flex-1 flex flex-col bg-gray-50 min-w-[360px]">
+    <div class="p-4 border-b border-gray-200 bg-white">
+      <h2 class="font-semibold text-gray-700 text-sm">提示词编辑</h2>
+    </div>
+
+    <div id="promptArea" class="flex-1 overflow-auto p-4 space-y-4">
+      <!-- Placeholder -->
+      <div id="promptPlaceholder" class="flex flex-col items-center justify-center h-full text-gray-400">
+        <svg class="w-16 h-16 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+        <p class="text-sm">在左侧输入问答内容，点击"分析"后这里将显示提示词</p>
+      </div>
+
+      <!-- Analysis result (hidden by default) -->
+      <div id="analysisResult" class="hidden fade-in space-y-4">
+        <div class="bg-white rounded-lg border border-gray-200 p-4">
+          <h3 class="text-sm font-semibold text-gray-600 mb-2">概念分析</h3>
+          <div class="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <span class="text-gray-400">插图类型：</span>
+              <span id="anaType" class="font-medium text-blue-600"></span>
+            </div>
+            <div>
+              <span class="text-gray-400">概念关系：</span>
+              <span id="anaRelation" class="text-gray-700"></span>
+            </div>
+          </div>
+          <div class="mt-2">
+            <span class="text-sm text-gray-400">核心概念：</span>
+            <div id="anaConcepts" class="flex flex-wrap gap-1.5 mt-1"></div>
+          </div>
+          <div class="mt-2">
+            <span class="text-sm text-gray-400">场景描述：</span>
+            <p id="anaScene" class="text-sm text-gray-600 mt-0.5"></p>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-lg border border-gray-200 p-4">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-sm font-semibold text-gray-600">绘画提示词 <span class="font-normal text-gray-400">(可编辑)</span></h3>
+            <button onclick="doRegenPrompt()" class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              重新生成
+            </button>
+          </div>
+          <textarea id="promptEditor" rows="8" class="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"></textarea>
+        </div>
+
+        <button onclick="doGenerate()" id="btnGenerate" class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2.5 px-4 rounded-lg text-sm transition flex items-center justify-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          生成图片
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Right: Image Preview -->
+  <section class="w-[380px] min-w-[300px] border-l border-gray-200 bg-white flex flex-col">
+    <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+      <h2 class="font-semibold text-gray-700 text-sm">图片预览</h2>
+      <button onclick="loadHistory()" class="text-xs text-blue-600 hover:text-blue-800">刷新历史</button>
+    </div>
+
+    <div class="flex-1 overflow-auto p-4 space-y-4">
+      <!-- Current image -->
+      <div id="imagePreview" class="hidden fade-in">
+        <div id="imageLoading" class="hidden flex flex-col items-center py-8">
+          <div class="spinner mb-3"></div>
+          <p class="text-sm text-gray-500">图片生成中，请稍候...</p>
+          <p id="imageStatus" class="text-xs text-gray-400 mt-1"></p>
+        </div>
+        <div id="imageResult" class="hidden space-y-3">
+          <div>
+            <p class="text-xs font-medium text-gray-500 mb-1">彩色原图</p>
+            <img id="previewImg" class="w-full rounded-lg border border-gray-200 shadow-sm" alt="彩色插图">
+          </div>
+          <div id="bwSection" class="hidden">
+            <p class="text-xs font-medium text-gray-500 mb-1">黑白版本</p>
+            <img id="previewBwImg" class="w-full rounded-lg border border-gray-200 shadow-sm" alt="黑白插图">
+          </div>
+          <div class="flex gap-2">
+            <a id="downloadLink" href="#" download class="flex-1 bg-blue-50 text-blue-700 text-center py-2 rounded-lg text-sm font-medium hover:bg-blue-100 transition">下载彩图</a>
+            <a id="downloadBwLink" href="#" download class="flex-1 bg-gray-100 text-gray-700 text-center py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition hidden">下载黑白</a>
+            <button onclick="doGenerate()" class="flex-1 bg-gray-50 text-gray-600 py-2 rounded-lg text-sm font-medium hover:bg-gray-100 transition border border-gray-200">重新生成</button>
+          </div>
+        </div>
+        <div id="imageError" class="hidden bg-red-50 border border-red-200 rounded-lg p-4">
+          <p class="text-sm text-red-700" id="imageErrorMsg"></p>
+        </div>
+      </div>
+
+      <!-- History -->
+      <div>
+        <h3 class="text-sm font-medium text-gray-500 mb-2">历史记录</h3>
+        <div id="historyList" class="grid grid-cols-2 gap-2"></div>
+        <p id="historyEmpty" class="text-sm text-gray-400 text-center py-4 hidden">暂无历史记录</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- Settings Modal -->
+<div id="settingsModal" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center" onclick="if(event.target===this)closeSettings()">
+  <div class="bg-white rounded-xl shadow-xl w-[520px] max-h-[80vh] overflow-auto">
+    <div class="flex items-center justify-between p-5 border-b border-gray-200">
+      <h2 class="font-semibold text-gray-800">参数配置</h2>
+      <button onclick="closeSettings()" class="text-gray-400 hover:text-gray-600">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="p-5 space-y-5">
+      <!-- OpenAI Config -->
+      <fieldset class="space-y-3">
+        <legend class="text-sm font-semibold text-gray-600">OpenAI / LLM 配置</legend>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">API Key</label>
+          <input id="cfgOpenaiKey" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="从 config.yaml 读取" disabled>
+          <p class="text-xs text-gray-400 mt-0.5">API Key 请在 config.yaml 或环境变量中配置</p>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">模型</label>
+            <input id="cfgOpenaiModel" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="gpt-4o">
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Base URL</label>
+            <input id="cfgOpenaiBase" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="https://api.openai.com/v1">
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- Nano Banana Config -->
+      <fieldset class="space-y-3">
+        <legend class="text-sm font-semibold text-gray-600">Nano Banana (Grsai) 配置</legend>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">API Key</label>
+          <input id="cfgNanoKey" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="从 config.yaml 读取" disabled>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">模型</label>
+            <select id="cfgNanoModel" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+              <option value="nano-banana-pro">nano-banana-pro</option>
+              <option value="nano-banana-2">nano-banana-2</option>
+              <option value="nano-banana">nano-banana</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Base URL</label>
+            <input id="cfgNanoBase" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="https://grsai.dakka.com.cn">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">图片尺寸</label>
+            <select id="cfgImageSize" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+              <option value="1K">1K</option>
+              <option value="2K">2K</option>
+              <option value="4K">4K</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">图片比例</label>
+            <select id="cfgAspectRatio" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+              <option value="1:1">1:1</option>
+              <option value="16:9">16:9</option>
+              <option value="9:16">9:16</option>
+              <option value="4:3">4:3</option>
+              <option value="3:4">3:4</option>
+            </select>
+          </div>
+        </div>
+      </fieldset>
+    </div>
+    <div class="flex justify-end gap-2 p-5 border-t border-gray-200">
+      <button onclick="closeSettings()" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">取消</button>
+      <button onclick="saveSettings()" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">保存配置</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="fixed top-4 right-4 z-50 hidden">
+  <div class="bg-gray-800 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg" id="toastMsg"></div>
+</div>
+
+<script>
+const API = '';
+let currentAnalysis = null;
+let currentItem = null;
+let fileContent = null;
+
+// ---- Mode Switch ----
+function setMode(mode) {
+  const btnS = document.getElementById('btnSingle');
+  const btnB = document.getElementById('btnBatch');
+  const modeS = document.getElementById('singleMode');
+  const modeB = document.getElementById('batchMode');
+  if (mode === 'single') {
+    btnS.className = 'px-3 py-1.5 text-xs font-medium rounded-md bg-blue-50 text-blue-700 border border-blue-200';
+    btnB.className = 'px-3 py-1.5 text-xs font-medium rounded-md bg-gray-50 text-gray-500 border border-gray-200';
+    modeS.classList.remove('hidden');
+    modeB.classList.add('hidden');
+  } else {
+    btnB.className = 'px-3 py-1.5 text-xs font-medium rounded-md bg-blue-50 text-blue-700 border border-blue-200';
+    btnS.className = 'px-3 py-1.5 text-xs font-medium rounded-md bg-gray-50 text-gray-500 border border-gray-200';
+    modeB.classList.remove('hidden');
+    modeS.classList.add('hidden');
+  }
+}
+
+// ---- File Upload ----
+function handleFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    fileContent = ev.target.result;
+    document.getElementById('fileName').textContent = '已选择: ' + file.name;
+    document.getElementById('fileName').classList.remove('hidden');
+    parseAndShowBatchList(fileContent);
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+function parseAndShowBatchList(text) {
+  const regex = /(?:<h2[^>]*>\s*(\d+)\.(.*?)<\/h2>|^##\s+(\d+)\.\s*(.+))/gmi;
+  const items = [];
+  let m;
+  while ((m = regex.exec(text)) !== null) {
+    const idx = m[1] || m[3];
+    const title = (m[2] || m[4]).trim();
+    items.push({ index: parseInt(idx), title });
+  }
+  const list = document.getElementById('batchList');
+  if (!items.length) {
+    list.innerHTML = '<p class="text-sm text-gray-400 py-4">未解析到问答条目</p>';
+    return;
+  }
+  list.innerHTML = items.map(it =>
+    `<div class="flex items-center gap-2 py-2 px-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer" onclick="selectBatchItem(${it.index})">
+      <span class="text-xs text-gray-400 w-6">${it.index}</span>
+      <span class="text-sm text-gray-700 flex-1 truncate">${it.title}</span>
+      <span class="text-xs text-gray-400" id="batchStatus_${it.index}">待处理</span>
+    </div>`
+  ).join('');
+}
+
+function selectBatchItem(index) {
+  if (!fileContent) return;
+  const sections = splitByH2(fileContent);
+  const section = sections.find(s => s.index === index);
+  if (section) {
+    document.getElementById('qaInput').value = section.text;
+    setMode('single');
+    doAnalyze();
+  }
+}
+
+function splitByH2(text) {
+  const re = /(?=<h2[^>]*>\s*\d+\.|^##\s+\d+\.)/gmi;
+  const parts = text.split(re).filter(p => p.trim());
+  return parts.map(p => {
+    const m = p.match(/<h2[^>]*>\s*(\d+)\.|^##\s+(\d+)\./mi);
+    return { index: m ? parseInt(m[1] || m[2]) : 0, text: p.trim() };
+  });
+}
+
+// ---- Analyze ----
+async function doAnalyze() {
+  const text = document.getElementById('qaInput').value.trim();
+  if (!text) { showToast('请输入问答内容'); return; }
+
+  setLoading('btnAnalyze', true);
+  try {
+    const resp = await fetch(API + '/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || resp.statusText);
+    }
+    const data = await resp.json();
+    currentAnalysis = data.analysis;
+    currentItem = data.item;
+    showAnalysis(data);
+    showToast('分析完成');
+  } catch (e) {
+    showToast('分析失败: ' + e.message, true);
+  } finally {
+    setLoading('btnAnalyze', false);
+  }
+}
+
+function showAnalysis(data) {
+  document.getElementById('promptPlaceholder').classList.add('hidden');
+  const el = document.getElementById('analysisResult');
+  el.classList.remove('hidden');
+
+  const a = data.analysis || {};
+  document.getElementById('anaType').textContent = a.illustration_type || '-';
+  document.getElementById('anaRelation').textContent = a.concept_relations || '-';
+  document.getElementById('anaScene').textContent = a.scene_description || '-';
+
+  const concepts = a.core_concepts || [];
+  document.getElementById('anaConcepts').innerHTML = concepts.map(c =>
+    `<span class="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded-full">${c}</span>`
+  ).join('');
+
+  document.getElementById('promptEditor').value = data.prompt || '';
+}
+
+// ---- Regenerate Prompt ----
+async function doRegenPrompt() {
+  const text = document.getElementById('qaInput').value.trim();
+  if (!text) { showToast('原始问答内容为空'); return; }
+  await doAnalyze();
+}
+
+// ---- Generate Image ----
+async function doGenerate() {
+  const prompt = document.getElementById('promptEditor').value.trim();
+  if (!prompt) { showToast('提示词不能为空'); return; }
+
+  document.getElementById('imagePreview').classList.remove('hidden');
+  document.getElementById('imageLoading').classList.remove('hidden');
+  document.getElementById('imageResult').classList.add('hidden');
+  document.getElementById('imageError').classList.add('hidden');
+  setLoading('btnGenerate', true);
+
+  try {
+    const resp = await fetch(API + '/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt,
+        title: currentItem?.title || '自定义问答',
+        index: currentItem?.index || 0,
+        analysis: currentAnalysis,
+      }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || resp.statusText);
+    }
+    const data = await resp.json();
+    document.getElementById('imageLoading').classList.add('hidden');
+
+    if (data.status === 'completed' && (data.local_url || data.image_url)) {
+      const url = data.local_url || data.image_url;
+      document.getElementById('previewImg').src = url;
+      document.getElementById('downloadLink').href = url;
+      showBwImage(data.bw_local_url);
+      document.getElementById('imageResult').classList.remove('hidden');
+      showToast('图片生成成功');
+      loadHistory();
+    } else {
+      document.getElementById('imageErrorMsg').textContent = data.error || '生成失败';
+      document.getElementById('imageError').classList.remove('hidden');
+    }
+  } catch (e) {
+    document.getElementById('imageLoading').classList.add('hidden');
+    document.getElementById('imageErrorMsg').textContent = e.message;
+    document.getElementById('imageError').classList.remove('hidden');
+  } finally {
+    setLoading('btnGenerate', false);
+  }
+}
+
+// ---- History ----
+async function loadHistory() {
+  try {
+    const resp = await fetch(API + '/api/history');
+    const data = await resp.json();
+    const list = document.getElementById('historyList');
+    const empty = document.getElementById('historyEmpty');
+
+    if (!data.records || !data.records.length) {
+      list.innerHTML = '';
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    list.innerHTML = data.records.map(r => {
+      const thumb = r.thumbnail
+        ? `<img src="${r.thumbnail}" class="w-full h-24 object-cover rounded-t-lg" alt="${r.title}" onerror="this.style.display='none'">`
+        : `<div class="w-full h-24 bg-gray-100 rounded-t-lg flex items-center justify-center text-gray-300 text-xs">无图</div>`;
+      return `<div class="thumb-card rounded-lg border border-gray-200 cursor-pointer overflow-hidden" onclick="viewHistory('${r.id}')">
+        ${thumb}
+        <div class="p-2">
+          <p class="text-xs text-gray-700 truncate" title="${r.title}">${r.title || '-'}</p>
+          <span class="text-xs ${r.image_status === 'completed' ? 'text-green-600' : 'text-red-500'}">${r.image_status === 'completed' ? '成功' : '失败'}</span>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    console.error('加载历史失败', e);
+  }
+}
+
+async function viewHistory(id) {
+  try {
+    const resp = await fetch(API + '/api/history/' + id);
+    const data = await resp.json();
+    if (data.image_prompt) {
+      document.getElementById('promptEditor').value = data.image_prompt;
+    }
+    if (data.analysis) {
+      currentAnalysis = data.analysis;
+      showAnalysis({ analysis: data.analysis, prompt: data.image_prompt });
+    }
+    if (data.local_url || data.image_url) {
+      const url = data.local_url || data.image_url;
+      document.getElementById('imagePreview').classList.remove('hidden');
+      document.getElementById('imageLoading').classList.add('hidden');
+      document.getElementById('imageError').classList.add('hidden');
+      document.getElementById('previewImg').src = url;
+      document.getElementById('downloadLink').href = url;
+      showBwImage(data.bw_local_url);
+      document.getElementById('imageResult').classList.remove('hidden');
+    }
+  } catch (e) {
+    showToast('加载失败', true);
+  }
+}
+
+// ---- Settings ----
+async function openSettings() {
+  document.getElementById('settingsModal').classList.remove('hidden');
+  try {
+    const resp = await fetch(API + '/api/config');
+    const cfg = await resp.json();
+    document.getElementById('cfgOpenaiKey').value = cfg.openai.api_key_masked;
+    document.getElementById('cfgOpenaiModel').value = cfg.openai.model;
+    document.getElementById('cfgOpenaiBase').value = cfg.openai.base_url;
+    document.getElementById('cfgNanoKey').value = cfg.nano_banana.api_key_masked;
+    document.getElementById('cfgNanoModel').value = cfg.nano_banana.model;
+    document.getElementById('cfgNanoBase').value = cfg.nano_banana.base_url;
+    document.getElementById('cfgImageSize').value = cfg.nano_banana.image_size;
+    document.getElementById('cfgAspectRatio').value = cfg.nano_banana.aspect_ratio;
+  } catch (e) {
+    showToast('加载配置失败', true);
+  }
+}
+
+function closeSettings() {
+  document.getElementById('settingsModal').classList.add('hidden');
+}
+
+async function saveSettings() {
+  const body = {
+    openai_model: document.getElementById('cfgOpenaiModel').value,
+    openai_base_url: document.getElementById('cfgOpenaiBase').value,
+    nano_model: document.getElementById('cfgNanoModel').value,
+    nano_base_url: document.getElementById('cfgNanoBase').value,
+    image_size: document.getElementById('cfgImageSize').value,
+    aspect_ratio: document.getElementById('cfgAspectRatio').value,
+  };
+  try {
+    const resp = await fetch(API + '/api/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (resp.ok) {
+      showToast('配置已保存');
+      closeSettings();
+    }
+  } catch (e) {
+    showToast('保存失败', true);
+  }
+}
+
+// ---- BW Image Helper ----
+function showBwImage(bwUrl) {
+  const section = document.getElementById('bwSection');
+  const img = document.getElementById('previewBwImg');
+  const link = document.getElementById('downloadBwLink');
+  if (bwUrl) {
+    img.src = bwUrl;
+    link.href = bwUrl;
+    section.classList.remove('hidden');
+    link.classList.remove('hidden');
+  } else {
+    section.classList.add('hidden');
+    link.classList.add('hidden');
+  }
+}
+
+// ---- Utilities ----
+function setLoading(btnId, loading) {
+  const btn = document.getElementById(btnId);
+  if (loading) {
+    btn.disabled = true;
+    btn.dataset.origHtml = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner"></span> 处理中...';
+    btn.classList.add('opacity-70', 'cursor-not-allowed');
+  } else {
+    btn.disabled = false;
+    btn.innerHTML = btn.dataset.origHtml;
+    btn.classList.remove('opacity-70', 'cursor-not-allowed');
+  }
+}
+
+function showToast(msg, isError = false) {
+  const toast = document.getElementById('toast');
+  const msgEl = document.getElementById('toastMsg');
+  msgEl.textContent = msg;
+  msgEl.className = `text-sm px-4 py-2.5 rounded-lg shadow-lg ${isError ? 'bg-red-600 text-white' : 'bg-gray-800 text-white'}`;
+  toast.classList.remove('hidden');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => toast.classList.add('hidden'), 3000);
+}
+
+// ---- Init ----
+document.addEventListener('DOMContentLoaded', () => {
+  loadHistory();
+
+  const dz = document.getElementById('dropZone');
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('border-blue-400', 'bg-blue-50'); });
+  dz.addEventListener('dragleave', () => { dz.classList.remove('border-blue-400', 'bg-blue-50'); });
+  dz.addEventListener('drop', e => {
+    e.preventDefault();
+    dz.classList.remove('border-blue-400', 'bg-blue-50');
+    const file = e.dataTransfer.files[0];
+    if (file && file.name.endsWith('.md')) {
+      const fi = document.getElementById('fileInput');
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      fi.files = dt.files;
+      handleFile({ target: fi });
+    }
+  });
+});
+</script>
+</body>
+</html>
