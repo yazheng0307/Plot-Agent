@@ -9,8 +9,18 @@ from typing import Any, Dict
 
 import yaml
 
+try:
+    from dotenv import load_dotenv
+except ImportError:  # python-dotenv 缺失时降级为 no-op，不影响纯环境变量场景
+    def load_dotenv(*_args, **_kwargs) -> bool:  # type: ignore[misc]
+        return False
+
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = PROJECT_ROOT / "config"
+
+# 项目启动时一次性加载 .env（不覆盖已在系统中设置的同名环境变量）
+load_dotenv(PROJECT_ROOT / ".env", override=False)
 
 
 def load_yaml(filepath: str | Path) -> Dict[str, Any]:
@@ -19,8 +29,14 @@ def load_yaml(filepath: str | Path) -> Dict[str, Any]:
 
 
 def load_config() -> Dict[str, Any]:
-    """加载 config.yaml，环境变量优先级高于配置文件。"""
+    """加载 config.yaml；.env / 环境变量优先级高于 yaml。
+
+    密钥推荐放在 ``.env`` 中（``OPENAI_API_KEY`` / ``GRSAI_API_KEY``），
+    yaml 中的 ``api_key`` 字段可留空。
+    """
     cfg = load_yaml(CONFIG_DIR / "config.yaml")
+    cfg.setdefault("openai", {})
+    cfg.setdefault("nano_banana", {})
 
     env_openai_key = os.environ.get("OPENAI_API_KEY")
     if env_openai_key:

@@ -211,9 +211,16 @@
           <div>
             <label class="block text-xs text-gray-500 mb-1">模型</label>
             <select id="cfgNanoModel" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-              <option value="nano-banana-pro">nano-banana-pro</option>
-              <option value="nano-banana-2">nano-banana-2</option>
-              <option value="nano-banana">nano-banana</option>
+              <optgroup label="Nano Banana">
+                <option value="nano-banana-pro">nano-banana-pro（默认）</option>
+                <option value="nano-banana-2">nano-banana-2</option>
+                <option value="nano-banana">nano-banana</option>
+              </optgroup>
+              <optgroup label="GPT Image">
+                <option value="gpt-image-2">gpt-image-2</option>
+                <option value="gpt-image-1.5">gpt-image-1.5</option>
+                <option value="gpt-image-1">gpt-image-1</option>
+              </optgroup>
             </select>
           </div>
           <div>

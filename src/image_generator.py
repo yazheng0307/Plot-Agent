@@ -1,8 +1,16 @@
-"""图片生成器：通过 Grsai 代理调用 Nano Banana API 生成图片并下载到本地。
+"""图片生成器：通过 Grsai 代理调用绘画模型 API 生成图片并下载到本地。
 
-API 文档: https://grsai.ai/zh/dashboard/documents/nano-banana
-提交任务: POST /v1/draw/nano-banana
-查询结果: POST /v1/draw/result
+API 文档:
+- Nano Banana: https://grsai.ai/zh/dashboard/documents/nano-banana
+- GPT Image:   https://grsai.ai/zh/dashboard/documents/gpt-image
+
+提交任务:
+- nano-banana / nano-banana-2 / nano-banana-pro : POST /v1/draw/nano-banana
+  payload: {model, prompt, aspectRatio, imageSize, urls, webHook}
+- gpt-image-1 / gpt-image-1.5 / gpt-image-2     : POST /v1/draw/completions
+  payload: {model, prompt, aspectRatio, urls, webHook, shutProgress}
+
+查询结果（两类模型统一）: POST /v1/draw/result
 """
 
 from __future__ import annotations
@@ -68,9 +76,14 @@ class ImageGenerator:
         filename: str = "image",
         image_size: str | None = None,
         aspect_ratio: str | None = None,
+        model: str | None = None,
     ) -> ImageResult:
-        """提交图片生成任务、轮询等待完成、下载图片。"""
-        task_id = self._submit_task(prompt, image_size, aspect_ratio)
+        """提交图片生成任务、轮询等待完成、下载图片。
+
+        参数 ``model`` 可临时覆盖 ``config.yaml`` 中配置的默认模型，
+        例如传入 ``"gpt-image-2"`` 即可单次切换。
+        """
+        task_id = self._submit_task(prompt, image_size, aspect_ratio, model)
         if not task_id:
             return ImageResult(task_id="", status="failed", error="提交任务失败")
 
@@ -88,24 +101,65 @@ class ImageGenerator:
 
         return result
 
+    @staticmethod
+    def _resolve_endpoint(model: str) -> str:
+        """根据模型名返回对应的 Grsai 提交端点路径。"""
+        m = model.lower()
+        if m.startswith("nano-banana"):
+            return "/v1/draw/nano-banana"
+        if m.startswith("gpt-image"):
+            return "/v1/draw/completions"
+        raise ValueError(
+            f"不支持的模型: {model}（支持 nano-banana* 与 gpt-image* 系列）"
+        )
+
+    def _build_payload(
+        self,
+        model: str,
+        prompt: str,
+        image_size: str | None,
+        aspect_ratio: str | None,
+    ) -> dict:
+        """按模型族构造请求体。两套 API 字段名不同。"""
+        m = model.lower()
+        ar = aspect_ratio or self._aspect_ratio
+        sz = image_size or self._image_size
+
+        if m.startswith("nano-banana"):
+            return {
+                "model": model,
+                "prompt": prompt,
+                "aspectRatio": ar,
+                "imageSize": sz,
+                "urls": [],
+                "webHook": "-1",
+            }
+        if m.startswith("gpt-image"):
+            # gpt-image-2 字段：model / prompt / aspectRatio / urls / webHook / shutProgress
+            # 不支持 imageSize；webHook="-1" 表示走轮询模式（立即返回任务 id）
+            return {
+                "model": model,
+                "prompt": prompt,
+                "aspectRatio": ar,
+                "urls": [],
+                "webHook": "-1",
+                "shutProgress": False,
+            }
+        raise ValueError(f"不支持的模型: {model}")
+
     def _submit_task(
         self,
         prompt: str,
         image_size: str | None = None,
         aspect_ratio: str | None = None,
+        model: str | None = None,
     ) -> str | None:
-        """向 Grsai 提交 Nano Banana 生成任务，返回任务 ID。"""
-        payload = {
-            "model": self._model,
-            "prompt": prompt,
-            "aspectRatio": aspect_ratio or self._aspect_ratio,
-            "imageSize": image_size or self._image_size,
-            "urls": [],
-            "webHook": "-1",
-        }
+        """向 Grsai 提交绘画任务，返回任务 ID。"""
+        active_model = model or self._model
+        url = f"{self._base_url}{self._resolve_endpoint(active_model)}"
+        payload = self._build_payload(active_model, prompt, image_size, aspect_ratio)
 
-        url = f"{self._base_url}/v1/draw/nano-banana"
-        logger.debug("POST %s | model=%s", url, self._model)
+        logger.debug("POST %s | model=%s", url, active_model)
 
         try:
             with httpx.Client(timeout=30) as client:

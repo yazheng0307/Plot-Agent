@@ -54,6 +54,6 @@ class PromptGenerator:
         prompt = response.choices[0].message.content.strip()
         prompt = prompt.strip('"').strip("'")
         # 增加：根据下面内容生成一幅适合放在专业书籍中的中文插图：
-        prompt = f"根据下面内容生成一幅适合放在专业书籍中的中文插图：\n{prompt}"
+        prompt = f"根据下面内容生成一幅适合放在专业书籍中的中文插图,扁平化技术插画，现代简约信息图表风格，白色背景，高对比度适合书籍印刷。线条简洁清晰，具有矢量插图质感，中文字体使用宋体，英文字体使用Times New Roman，字号大小为小四号：\n{prompt}"
         logger.debug("生成的绘画提示词: %s", prompt)
         return prompt
